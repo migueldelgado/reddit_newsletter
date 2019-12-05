@@ -1,0 +1,24 @@
+{
+  "name": "Reddit-Newsletter",
+  "version": "1.0.0",
+  "description": "Daily Reddit newsletter from your favorite Channels",
+  "main": "app.js",
+  "scripts": {
+    "start": "nodemon app.js"
+  },
+  "author": "Miguel Delgado",
+  "license": "MIT",
+  "devDependencies": {
+    "nodemon": "^2.0.1"
+  },
+  "dependencies": {
+    "@sendgrid/mail": "^6.4.0",
+    "axios": "^0.19.0",
+    "body-parser": "^1.19.0",
+    "dotenv": "^8.2.0",
+    "express": "^4.17.1",
+    "express-validator": "^6.3.0",
+    "mysql2": "^2.0.1",
+    "sequelize": "^5.21.2"
+  }
+}
