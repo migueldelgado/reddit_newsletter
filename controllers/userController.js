@@ -10,39 +10,33 @@ const Channel = require('../models/channel');
 
 const Sequelize = require('sequelize');
 
-exports.getAllUsers = (req, res) => {
-    User.findAll()
-        .then(users => {
-            res.send({
-                status: 200,
-                data: users
-            });
-        })
-        .catch(err => {
-            console.log(err);
-        });
+exports.getAllUsers = async (req, res) => {
+    try {
+        let users = await User.findAll();
+        res.send({ status: 200, data: users });
+    } catch(err) {
+        console.log(err);
+        res.send();
+    }
 }
 
-exports.getUserById = (req, res) => {
+exports.getUserById = async (req, res) => {
     const userId = req.params.userId;
-    User.findByPk(userId)
-        .then(user => {
-            if (user){
-                res.send({
-                    status: 200,
-                    data: user
-                })
-            } else {
-                res.status(404).send({
-                    status: 404,
-                    message: 'User not found'
-                })
-            }
-        })
-        .catch(err => console.log(err));
+    try {
+        let user = await User.findByPk(userId);
+        if (user){
+            let favorites = await user.getChannels();
+            res.send({ status: 200, data: { user, favorites }});
+        } else {
+            res.status(404).send({ status: 404, message: 'User not found' })
+        }
+    } catch(err) {
+        console.log(err);
+        res.send();
+    }
 }
 
-exports.addUser = (req, res) => {
+exports.addUser = async (req, res) => {
     const firstName = req.body.firstName;
     const lastName = req.body.lastName;
     const email = req.body.email;
@@ -50,143 +44,180 @@ exports.addUser = (req, res) => {
     let favoriteChannels;
     const sendNewsletter = req.body.sendNewsletter;
     const errors = validationResult(req);
+
     if (!errors.isEmpty()) {
         errors.status = 422;
         return res.status(422).send(errors);
     }
 
-    Channel.findAll({
-        where: {
-            id: favoriteIds
-        }
-    })
-    .then(channels => {
-        favoriteChannels = channels;
-        return User.findAll({
-            where: {
-                email: email
-            }
-        })
-    })   
-    .then(users => {
+    try {
+        favoriteChannels = await Channel.findAll({ where: { id: favoriteIds } });
+        let users = await User.findAll({ where: { email: email } });
+
         if (users.length > 0) {
             return res.status(422).send({
-                    status: 422,
-                    error: "There is a user with email: " + users[0].email
-                });
+                status: 422,
+                error: "There is a user already with this email: " + users[0].email
+            });
         }
 
-        User.create({
+        let user = await User.create({
             firstName,
             lastName,
             email,
             sendNewsletter
-        })
-        .then(user => {
-            user.setChannels(favoriteChannels)
-                .then(favorites => {
-                    res.send({
-                        status: 200,
-                        data: {
-                            user,
-                            favorites
-                        }
-                    });
-                });
+        });
 
-        })
-    })
-    .catch(err => {
+        let favorites = await user.setChannels(favoriteChannels);
+
+        res.send({
+            status: 200,
+            data: {
+                user,
+                favorites
+            }
+        });
+    } catch(err) {
         console.log(err);
-    })
+        res.send({ message: 'Internal Error' });
+    }
 }
 
-exports.editUserById = (req, res) => {
+exports.editUserById = async (req, res) => {
     const userId = req.params.userId;
     const firstName = req.body.firstName;
     const lastName = req.body.lastName;
     const email = req.body.email;
     const sendNewsletter = req.body.sendNewsletter;
+    const favoriteIds = req.body.favorites;
     const errors = validationResult(req);
+
     if (!errors.isEmpty()) {
         errors.status = 422;
         return res.status(422).send(errors);
     }
-    User.findByPk(userId)
-        .then(user => {
-            if (!user) {
-                return user;
-            }
-            user.firstName = firstName;
-            user.lastName = lastName;
-            user.email = email;
-            user.sendNewsletter = sendNewsletter;
-            return user.save();
-        }).then(user => {
-            if (!user) {
-                return res.status(404).send({
-                            status: 404,
-                            message: 'User not found'
-                        })
-            }
-            res.send({
-                status: 200,
-                data: user
-            });
-        })
-        .catch(err => console.log(err));
+    try {
+        let user = await User.findByPk(userId);
+
+        if (!user) {
+            return res.status(404).send({
+                status: 404,
+                message: 'User not found'
+            })
+        }
+
+        user.firstName = firstName;
+        user.lastName = lastName;
+        user.email = email;
+        user.sendNewsletter = sendNewsletter;
+        await user.setChannels(favoriteIds);
+        await user.save();
+        let favorites = await user.getChannels();
+
+        res.send({ status: 200, data: { user, favorites } });
+
+    } catch(err){
+        console.log(err);
+        res.send({ message: 'Internal Error' });
+    }
 }
 
 exports.deleteUserById = (req, res) => {
 //TODO finish delete user
 }
 
-exports.sendNewsLetter = async (req, res) => {
+exports.sendNewsLetter = async () => {
     let baseUrl = 'https://www.reddit.com/r/';
-    let endUrl = '/top.json?limit=3';
-    let favorites = [];
+    let endUrl = '/top.json?t=day&limit=3';
+
     try {
         const users = await User.findAll();
+        let results = [];
 
+        (async () => {
+            await asyncForEach(users, async (user, idx1) => {
+                // With this condition we will check if the user is activate or not to received emails
+                if (user.sendNewsletter) {
+                    let channels = await user.getChannels();
+                    let userCopy = {};
+                    let template;
+                    
+                    userCopy.id = user.id;
+                    userCopy.firstName = user.firstName;
+                    userCopy.email = user.email;
+                    userCopy.channels = [];
 
-        for (let i = 0 ; i < users.length ; i++){
-            let channels = await users[i].getChannels();
-            let userId = users[i].name;
-            for (let j = 0 ; j < channels.length ; j++){
-                let channelId = channels[j].id;
-                let results = [];
-                results[channelId] = await axios.get(baseUrl + channels[j].name + endUrl);
-                favorites[channelId] = results[channelId].data.data.children;
-            }
-
-        }
-
-        res.send(favorites);
+                    await asyncForEach(channels, async (channel, idx2) => {
+                        let url = baseUrl + channel.name;
+                        let redditChannel = await axios.get(url + endUrl);
+                        userCopy.channels.push({
+                            id: channel.id,
+                            name: channel.name,
+                            url: url,
+                            posts: redditChannel.data.data.children
+                        });
+                    })
+                    template = generateTemplate(userCopy);
+                    sendEmail(userCopy.email, template);
+                    results.push(userCopy);
+                }
+            });
+            console.log(results);
+        })();
     }
     catch(err) {
         console.log(err);
     }
 }
 
-function generateTemplate(user, posts) {
-    let html =  '<p>Hello' + user.name + '</p>';
-    for (let i = 0; i < posts.data.data.children.length ; i++){
-        html += '<p>' + posts.data.data.children + '</p>'
-    }
+function generateTemplate(user) {
+    let html =  `
+        <p>
+            Hello ${ user.firstName },<br>
+            See yesterday's top voted posts from your favorite channel
+        </p>
+        ${ user.channels.map(
+            channel => {
+                return `
+                    <div class="main-title" style="margin-top: 30px;">
+                        <span class="channelTitle" style="border: 2px solid; padding: 7px;">
+                            <span class="channel" style="font-size: 20px; font-weight: bold;">${ channel.name }:</span> 
+                            <a href="${ channel.url }/top" target="_blank">${ channel.url }/top</a>
+                        </span>
+                    </div>
+                    ${ channel.posts.map(
+                        post => {
+                            return `
+                                <div class="article" style="margin-top: 40px;">
+                                    <span class="score" style="border: 1px solid; border-radius: 25px; padding: 12px; margin-right: 15px; background: rgb(245, 177, 50); color: white; font-weight: bold;">
+                                        ${ post.data.score }
+                                    </span>
+                                    <span class="title">${ post.data.title }</span>
+                                </div>
+                            `
+                        }).join('')
+                    }
+                `
+            }).join('')
+        }
+    `
+    return html;
 }
 
 
-function sendEmail(user, template) {
+function sendEmail(email, template) {
     sgMail.setApiKey(process.env.SENDGRID_API_KEY);
     const msg = {
-        to: user.email,
+        to: email,
         from: 'no-reply@hear.com',
         subject: 'Reddit Newsletter',
         html: template
     };
     sgMail.send(msg);
-    res.send({
-        status: 200,
-        message: 'Email sent...'
-    });
+}
+
+async function asyncForEach(array, callback) {
+    for (let index = 0; index < array.length; index++) {
+        await callback(array[index], index, array);
+    }
 }

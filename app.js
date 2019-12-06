@@ -2,7 +2,6 @@ const express = require('express');
 
 const bodyParser = require('body-parser');
 
-// Routes
 const userRoutes = require('./routes/users');
 const channelRoutes = require('./routes/channels');
 
@@ -11,15 +10,21 @@ const User = require('./models/user');
 const Channel = require('./models/channel');
 const Favorite = require('./models/favorite');
 
+//Database
 const sequelize = require('./config/database');
+
+//CronJobs
+const NewsletterCron = require('./cronjobs/newsletter');
+NewsletterCron();
 
 const app = express();
 app.get('/favicon.ico', (req, res) => res.status(204));
 
-//will parse body parameters
+// to parse body parameters
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
 
+// Routes
 app.use('/api/v1/user', userRoutes);
 app.use('/api/v1/channel', channelRoutes);
 

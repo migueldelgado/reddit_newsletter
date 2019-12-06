@@ -15,8 +15,6 @@ router.post('/add',
     check('sendNewsletter').isBoolean(),
     userController.addUser);
 
-router.get('/sendNewsletter', userController.sendNewsLetter);
-
 router.put('/:userId/edit', 
     check('email').isEmail(),
     check('firstName').notEmpty(),
