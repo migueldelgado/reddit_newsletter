@@ -187,10 +187,12 @@ function generateTemplate(user) {
                     </div>
                     ${ channel.posts.map(
                         post => {
+                            let num = post.data.score;
+                            let score = Math.abs(num) > 999 ? Math.sign(num)*((Math.abs(num)/1000).toFixed(1)) + 'k' : Math.sign(num)*Math.abs(num);
                             return `
                                 <div class="article" style="margin-top: 40px;">
                                     <span class="score" style="border: 1px solid; border-radius: 25px; padding: 12px; margin-right: 15px; background: rgb(245, 177, 50); color: white; font-weight: bold;">
-                                        ${ post.data.score }
+                                        ${ score }
                                     </span>
                                     <span class="title">${ post.data.title }</span>
                                 </div>
@@ -213,7 +215,13 @@ function sendEmail(email, template) {
         subject: 'Reddit Newsletter',
         html: template
     };
-    sgMail.send(msg);
+    sgMail.send(msg)
+        .then(result => {
+            console.log('email sent');
+        })
+        .catch(err => {
+            console.log('there is a problem with sendgrid');
+        });
 }
 
 async function asyncForEach(array, callback) {

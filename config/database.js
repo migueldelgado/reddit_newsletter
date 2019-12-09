@@ -1,7 +1,7 @@
 const Sequelize = require('sequelize');
 
 const sequelize = new Sequelize(
-    'astoria_node',
+    'reddit_newsletter',
     'homestead',
     'secret',
     {

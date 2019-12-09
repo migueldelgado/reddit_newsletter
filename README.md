@@ -25,6 +25,7 @@ npm start
 - The folder cronjobs have a file with instruccions to send emails everyday at 8am with the top 3 news of users favorite channels
 - The folder postman has all the api end points with the correspondant parameters
 - DB configuration in config/database.js
+- .env.example should be change to .env with a valid api key
 - There is no images in the posts from reedit so I didnt add any image like the one it shows in the design provided
 - I didn't add unit test just because of the short amount of time
 - To change the status of the recieve newsletter or not, you can edit user and change it, I didn't create a specific endpoint
